@@ -167,16 +167,24 @@ class App(tk.Tk):
             option=SENDFILE
             sck.sendall(option.encode(FORMAT))
             file_name=fd.askopenfilename()
+            size=os.path.getsize(file_name)
             sck.sendall(file_name.encode(FORMAT))
-            with open(file_name,"rb") as f:
-                while True:
-                    bytes_read=f.read(1024)
-                    if not bytes_read:
-                        sck.send(b'-+Done+-')
-                        receive=sck.recv(1024)
-                        if(receive==b'-+Success+-'):
-                            break
+            receive=sck.recv(1024).decode(FORMAT)
+            sck.sendall(str(size).encode(FORMAT))
+            receive=sck.recv(1024).decode(FORMAT)
+            if receive=="1":
+                with open(file_name,"rb") as f:
+                    bytes_read=f.read(size)
                     sck.sendall(bytes_read)
+            # with open(file_name,"rb") as f:
+            #     while True:
+            #         bytes_read=f.read(1024)
+            #         if not bytes_read:
+            #             sck.send(b'-+Done+-')
+            #             receive=sck.recv(1024)
+            #             if(receive==b'-+Success+-'):
+            #                 break
+            #         sck.sendall(bytes_read)
             username=self.frames[StartPage].entry_user.get()
             sck.send(username.encode(FORMAT))
             curFrame.label_notice["text"]="Send file successfully"

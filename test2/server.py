@@ -211,14 +211,19 @@ def clientSendFile(sck):
     user=sck.recv(1024).decode(FORMAT)
     file_name=str(user)
     file_name=os.path.basename(file_name)
-
+    sck.send("1".encode(FORMAT))
+    size=int(sck.recv(1024).decode())
+    sck.send("1".encode(FORMAT))
     with open(file_name,"wb") as f:
-        while True:
-            bytes_read=sck.recv(1024)
-            if bytes_read == b'-+Done+-':
-                sck.send(b'-+Success+-')
-                break
-            f.write(bytes_read)
+        bytes_read=sck.recv(size)
+        f.write(bytes_read)
+    # with open(file_name,"wb") as f:
+    #     while True:
+    #         bytes_read=sck.recv(1024)
+    #         if bytes_read == b'-+Done+-':
+    #             sck.send(b'-+Success+-')
+    #             break
+    #         f.write(bytes_read)
 
     username=sck.recv(1024).decode(FORMAT)
     name,Type=os.path.splitext(file_name)
