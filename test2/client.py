@@ -54,7 +54,7 @@ class App(tk.Tk):
     def showFrame(self, container):
         frame = self.frames[container]
         if container==HomePage:
-            self.geometry("700x500")
+            self.geometry("1000x1200")
         else:
             self.geometry("500x200")
         frame.tkraise()
@@ -205,6 +205,7 @@ class App(tk.Tk):
                 option.add_command(label=string, 
                              command=lambda value=string:
                                     file_variable.set(value))
+            curFrame.label_notice["text"]="Update file successfully"
         except: 
             curFrame.label_notice["text"]="Error: Server is not responding"
     def retrieveFile(self,curFrame,sck):
@@ -215,6 +216,7 @@ class App(tk.Tk):
             sck.sendall(nameFile.encode(FORMAT))
             username=self.frames[StartPage].entry_user.get()
             sck.sendall(nameFile.encode(FORMAT))
+            curFrame.label_notice["text"]="Retrive file successfully"
         except:
             curFrame.label_notice["text"]="Error: Server is not responding"
     
@@ -234,10 +236,14 @@ class App(tk.Tk):
             content=sck.recv(size)
             sck.send("1".encode(FORMAT))
             Type=sck.recv(1024).decode(FORMAT)
+            curFrame.text.delete("1.0","end")
             with open(nameFile+Type,"wb") as f:
                 f.write(content)
             if Type==".txt":
-                path=text_to_image.encode_file(nameFile+Type, nameFile+".png")
+                text_file=open(nameFile+Type,"r")
+                stuff=text_file.read()
+                curFrame.text.insert(END,stuff)
+                return
             elif Type==".png": path=nameFile+".png"
             elif Type==".jpg": path=nameFile+".jpg"
             original_img=Image.open(path)
@@ -245,6 +251,7 @@ class App(tk.Tk):
             img=ImageTk.PhotoImage(resize_img)
             panel.configure(image=img)
             panel.image=img
+            curFrame.label_notice["text"]="Display file successfully"
         except: 
             curFrame.label_notice["text"]="Error: Server is not responding"
 class StartPage(tk.Frame):
@@ -289,9 +296,12 @@ class HomePage(tk.Frame):
         self.file_variable=tk.StringVar(self)
         self.file_variable.set("File list")
         self.file_option=tk.OptionMenu(self, self.file_variable,*self.listFile)
-        img=ImageTk.PhotoImage(Image.open(self.path))
+        original_img=Image.open(self.path)
+        resize_img=original_img.resize((300,300))
+        img=ImageTk.PhotoImage(resize_img)
         self.panel=tk.Label(self,image=img)
         self.panel.image=img
+        self.text=Text(self,width=30,height=10,font=("Helvetica",16))
         label_title.pack(pady=10)
         button_back.pack(pady=2)
         send_back.pack(pady=2)
@@ -300,6 +310,7 @@ class HomePage(tk.Frame):
         retrieve_back.pack(pady=2)
         display_back.pack(pady=2)
         self.panel.pack()
+        self.text.pack()
         self.label_notice.pack()
     
 
