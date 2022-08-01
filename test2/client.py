@@ -213,9 +213,21 @@ class App(tk.Tk):
             option=RETRIEVEFILE
             sck.sendall(option.encode(FORMAT))
             nameFile=curFrame.file_variable.get()
+            nameFile=nameFile[2:len(nameFile)-3]
             sck.sendall(nameFile.encode(FORMAT))
-            username=self.frames[StartPage].entry_user.get()
-            sck.sendall(nameFile.encode(FORMAT))
+            receive=sck.recv(1024).decode(FORMAT)
+            if receive=="1":
+                username=self.frames[StartPage].entry_user.get()
+                sck.sendall(username.encode(FORMAT))
+            name=sck.recv(1024).decode(FORMAT)
+            sck.send("1".encode(FORMAT))
+            Type=sck.recv(1024).decode(FORMAT)
+            sck.send("1".encode(FORMAT))
+            size=int(sck.recv(1024).decode(FORMAT))
+            sck.send("1".encode(FORMAT))
+            content=sck.recv(size)
+            with open(name+Type,"wb") as f:
+                f.write(content)
             curFrame.label_notice["text"]="Retrive file successfully"
         except:
             curFrame.label_notice["text"]="Error: Server is not responding"

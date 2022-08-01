@@ -57,12 +57,12 @@ def Retrieve_File(username,name):
     cursor=con.cursor()
     cursor.execute("select * from file where username = ? and name = ?",(username,name))
     record=cursor.fetchall()
-    for row in record:
-        name=row[3]
-        Type=row[2]
-        content=row[4]
-        path=name+Type
-        convertToFile(content, path)
+    row=record[0]
+    name=row[3]
+    Type=row[2]
+    content=row[4]
+    path=name+Type
+    return content,name,Type
 
 def Display_File(username,name):
     con=ConnectToFileDB()
@@ -241,7 +241,19 @@ def clientRetrieveFile(sck):
     nameFile=sck.recv(1024).decode(FORMAT)
     sck.sendall("1".encode(FORMAT))
     username=sck.recv(1024).decode(FORMAT)
-    Retrieve_File(username, nameFile)
+    content,name,Type=Retrieve_File(username, nameFile)
+    sck.sendall(name.encode(FORMAT))
+    receive=sck.recv(1024).decode(FORMAT)
+    if receive=="1":
+        sck.sendall(Type.encode(FORMAT))
+        receive=sck.recv(1024).decode(FORMAT)
+        if receive=="1":
+            size=sys.getsizeof(content)
+            sck.sendall(str(size).encode(FORMAT))
+            if receive=="1":
+                sck.sendall(content)
+        
+        
 
 def clientDisplayFile(sck):
     nameFile=sck.recv(1024).decode(FORMAT)
