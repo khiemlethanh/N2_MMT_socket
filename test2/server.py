@@ -7,6 +7,9 @@ from tkinter.ttk import *
 import socket
 import threading
 import sqlite3
+import os
+import tqdm
+import sys
 
 LARGE_FONT = ("verdana", 13,"bold")
 
@@ -16,12 +19,14 @@ HEADER = 64
 FORMAT = "utf8"
 DISCONNECT = "x"
 
-
 #option
 SIGNUP = "signup"
 LOGIN = "login"
 LOGOUT = "logout"
-
+SENDFILE="sendfile"
+UPDATEFILE="updatefile"
+RETRIEVEFILE="retrievefile"
+DISPLAYFILE="displayfile"
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.bind((HOST, PORT))
@@ -32,10 +37,60 @@ def ConnectToDB():
     cursor.execute('''CREATE TABLE IF NOT EXISTS ACCOUNT(username STRING PRIMARY KEY NOT NULL, password STRING NOT NULL)''')
     return cursor
 
+def ConnectToFileDB():
+    cursor=sqlite3.connect('file.db')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS FILE(id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,username STRING NOT NULL, type STRING NOT NULL,name STRING NOT NULL, content BLOB NOT NULL)''')
+    return cursor
+
 def Insert_New_Account(user,password):
     cursor=ConnectToDB()
     cursor.execute("insert into ACCOUNT(username,password) values(?,?);",(user,password))
     cursor.commit()
+
+def Insert_File(username,Type,name,content):
+    cursor=ConnectToFileDB()
+    cursor.execute("insert into FILE(username,type,name,content) values(?,?,?,?);",(username,Type,name,content))
+    cursor.commit()
+
+def Retrieve_File(username,name):
+    con=ConnectToFileDB()
+    cursor=con.cursor()
+    cursor.execute("select * from file where username = ? and name = ?",(username,name))
+    record=cursor.fetchall()
+    for row in record:
+        name=row[3]
+        Type=row[2]
+        content=row[4]
+        path=name+Type
+        convertToFile(content, path)
+
+def Display_File(username,name):
+    con=ConnectToFileDB()
+    cursor=con.cursor()
+    cursor.execute("select * from file where username = ? and name = ?",(username,name))
+    record=cursor.fetchall()
+    row=record[0]
+    content=row[4]
+    Type=row[2]
+    return content,Type
+
+
+def RetrieveFileName(username):
+    con=ConnectToFileDB()
+    cursor=con.cursor()
+    cursor.execute("SELECT NAME FROM FILE WHERE USERNAME  = ?",(username,))
+    listFile=[]
+    listFile=cursor.fetchall()
+    return listFile
+
+def convertToBinary(file_name):
+    with open(file_name,"rb") as f:
+        blob=f.read()
+    return blob
+
+def convertToFile(data,file_name):
+    with open(file_name,'wb') as f:
+        f.write(data)
 
 def check_clientSignUp(username):
     con=sqlite3.connect('test.db')
@@ -121,7 +176,6 @@ def clientSignUp(sck, addr):
 
     if accepted:
         Insert_New_Account(user, pswd)
-
         # add client sign up address to live account
         Ad.append(str(addr))
         ID.append(user)
@@ -135,6 +189,7 @@ def clientLogIn(sck):
 
     user = sck.recv(1024).decode(FORMAT)
     print("username:--" + user +"--")
+    USERNAME=user
 
     sck.sendall(user.encode(FORMAT))
     
@@ -152,6 +207,52 @@ def clientLogIn(sck):
     print("end-logIn()")
     print("")
 
+def clientSendFile(sck):
+    user=sck.recv(1024).decode(FORMAT)
+    file_name=str(user)
+    file_name=os.path.basename(file_name)
+
+    with open(file_name,"wb") as f:
+        while True:
+            bytes_read=sck.recv(1024)
+            if bytes_read == b'-+Done+-':
+                sck.send(b'-+Success+-')
+                break
+            f.write(bytes_read)
+
+    username=sck.recv(1024).decode(FORMAT)
+    name,Type=os.path.splitext(file_name)
+    content=convertToBinary(file_name)
+    Insert_File(username, Type,name,content)
+
+def clientUpdateFile(sck):
+    user=sck.recv(1024).decode(FORMAT)
+    listFile=[]
+    listFile=RetrieveFileName(user)
+    listFile=str(listFile)
+    sck.sendall(listFile.encode(FORMAT))
+
+def clientRetrieveFile(sck):
+    nameFile=sck.recv(1024).decode(FORMAT)
+    sck.sendall("1".encode(FORMAT))
+    username=sck.recv(1024).decode(FORMAT)
+    Retrieve_File(username, nameFile)
+
+def clientDisplayFile(sck):
+    nameFile=sck.recv(1024).decode(FORMAT)
+    sck.sendall("1".encode(FORMAT))
+    username=sck.recv(1024).decode(FORMAT)
+    content,Type=Display_File(username, nameFile)
+    size=sys.getsizeof(content)
+    sck.sendall(str(size).encode(FORMAT))
+    receive=sck.recv(1024).decode(FORMAT)
+    if receive=="1":
+        sck.sendall(content)
+        receive=sck.recv(1024).decode(FORMAT)
+        if receive=="1":
+            sck.sendall(Type.encode(FORMAT))
+        
+    
 def handle_Client(conn, addr):
     while True:
 
@@ -164,8 +265,14 @@ def handle_Client(conn, addr):
             clientSignUp(conn, addr)
         elif option == LOGOUT:
             Remove_LiveAccount(conn,addr)
-        
-
+        elif option == SENDFILE:
+            clientSendFile(conn)
+        elif option ==  UPDATEFILE:
+            clientUpdateFile(conn)
+        elif option == RETRIEVEFILE:
+            clientRetrieveFile(conn)
+        elif option == DISPLAYFILE:
+            clientDisplayFile(conn)
 
     Remove_LiveAccount(conn,addr)
     conn.close()

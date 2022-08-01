@@ -1,23 +1,32 @@
 import socket
 import tkinter as tk 
+from tkinter import *
 from tkinter import messagebox
 from tkinter import ttk 
+from tkinter import filedialog as fd
 import threading
 from datetime import datetime
+import os
+from PIL import Image,ImageTk
+import text_to_image
 
+SEPARATOR="<SEPARATOR>"
 HOST = "127.0.0.1"
 PORT = 65432
 HEADER = 64
 FORMAT = "utf8"
 DISCONNECT = "x"
+USERNAME=""
 
 LARGE_FONT = ("verdana", 13,"bold")
-
 #option
 SIGNUP = "signup"
 LOGIN = "login"
 LOGOUT = "logout"
-  
+SENDFILE="sendfile"
+UPDATEFILE="updatefile"
+RETRIEVEFILE="retrievefile"
+DISPLAYFILE="displayfile"
 class App(tk.Tk):
     def __init__(self, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
@@ -153,11 +162,86 @@ class App(tk.Tk):
         except:
             curFrame.label_notice["text"] = "Error: Server is not responding"
 
+    def sendFile(self,curFrame,sck):
+        try:
+            option=SENDFILE
+            sck.sendall(option.encode(FORMAT))
+            file_name=fd.askopenfilename()
+            sck.sendall(file_name.encode(FORMAT))
+            with open(file_name,"rb") as f:
+                while True:
+                    bytes_read=f.read(1024)
+                    if not bytes_read:
+                        sck.send(b'-+Done+-')
+                        receive=sck.recv(1024)
+                        if(receive==b'-+Success+-'):
+                            break
+                    sck.sendall(bytes_read)
+            username=self.frames[StartPage].entry_user.get()
+            sck.send(username.encode(FORMAT))
+            curFrame.label_notice["text"]="Send file successfully"
+        except: 
+            curFrame.label_notice["text"]="Error: Server is not responding"
+    def updateFile(self,curFrame,file_variable,sck):
+        try:
+            option=UPDATEFILE
+            sck.sendall(option.encode(FORMAT))
+            user=self.frames[StartPage].entry_user.get()
+            sck.sendall(user.encode(FORMAT))
+            listFile=sck.recv(4096).decode(FORMAT)
+            listFile=eval(listFile)
+            option=curFrame.file_option["menu"]
+            option.delete(0,"end")
 
+            for string in listFile:
+                option.add_command(label=string, 
+                             command=lambda value=string:
+                                    file_variable.set(value))
+        except: 
+            curFrame.label_notice["text"]="Error: Server is not responding"
+    def retrieveFile(self,curFrame,sck):
+        try:
+            option=RETRIEVEFILE
+            sck.sendall(option.encode(FORMAT))
+            nameFile=curFrame.file_variable.get()
+            sck.sendall(nameFile.encode(FORMAT))
+            username=self.frames[StartPage].entry_user.get()
+            sck.sendall(nameFile.encode(FORMAT))
+        except:
+            curFrame.label_notice["text"]="Error: Server is not responding"
+    
+    def displayFile(self,curFrame,panel,sck):
+        try:
+            option=DISPLAYFILE
+            sck.sendall(option.encode(FORMAT))
+            nameFile=curFrame.file_variable.get()
+            nameFile=nameFile[2:len(nameFile)-3]
+            sck.sendall(nameFile.encode(FORMAT))
+            receive=sck.recv(1024).decode(FORMAT)
+            if receive=="1":
+                username=self.frames[StartPage].entry_user.get()
+                sck.sendall(username.encode(FORMAT))
+            size=int(sck.recv(1024).decode(FORMAT))
+            sck.send("1".encode(FORMAT))
+            content=sck.recv(size)
+            sck.send("1".encode(FORMAT))
+            Type=sck.recv(1024).decode(FORMAT)
+            with open(nameFile+Type,"wb") as f:
+                f.write(content)
+            if Type==".txt":
+                path=text_to_image.encode_file(nameFile+Type, nameFile+".png")
+            else: path=nameFile+".png"
+            original_img=Image.open(path)
+            resize_img=original_img.resize((300,300))
+            img=ImageTk.PhotoImage(resize_img)
+            panel.configure(image=img)
+            panel.image=img
+        except: 
+            curFrame.label_notice["text"]="Error: Server is not responding"
 class StartPage(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
-
+    
         label_title = tk.Label(self, text="LOG IN", font=LARGE_FONT)
         label_user = tk.Label(self, text="username ",fg='#20639b',font='verdana 10 ')
         label_pswd = tk.Label(self, text="password ",fg='#20639b',font='verdana 10 ')
@@ -184,22 +268,49 @@ class StartPage(tk.Frame):
 class HomePage(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
-        
+        self.listFile=['']
+        self.path="white.jpg"
         label_title = tk.Label(self, text="HOME PAGE", font=LARGE_FONT,fg='#20639b')
         button_back = tk.Button(self, text="LOG OUT", command=lambda: controller.logout(self,client))
-        send_back = tk.Button(self, text="SEND FILE")
-        retriev_back= tk.Button(self, text="RETRIEVE FILE")
-
+        send_back = tk.Button(self, text="SEND FILE",command=lambda:controller.sendFile(self,client))
+        update_back= tk.Button(self, text="UPDATE FILE LIST",command=lambda: controller.updateFile(self,self.file_variable,client))
+        retrieve_back= tk.Button(self, text="RETRIEVE FILE",command=lambda: controller.retrieveFile(self,client))
+        display_back= tk.Button(self, text="DISPLAY FILE",command=lambda: controller.displayFile(self,self.panel,client))
+        self.label_notice=tk.Label(self,text="",bg="light yellow")
+        self.file_variable=tk.StringVar(self)
+        self.file_variable.set("File list")
+        self.file_option=tk.OptionMenu(self, self.file_variable,*self.listFile)
+        img=ImageTk.PhotoImage(Image.open(self.path))
+        self.panel=tk.Label(self,image=img)
+        self.panel.image=img
         label_title.pack(pady=10)
         button_back.pack(pady=2)
         send_back.pack(pady=2)
-        retriev_back.pack(pady=2)
+        self.file_option.pack()
+        update_back.pack(pady=2)
+        retrieve_back.pack(pady=2)
+        display_back.pack(pady=2)
+        self.panel.pack()
+        self.label_notice.pack()
+    
 
+
+
+# class FilePage(tk.Frame):
+#     def __init__(self,parent,controller):
+#         tk.Frame.__init__(self,parent)
+
+#         lable_title=tk.Label(self,text="FILE PAGE",font=LARGE_FONT,fg='#20639b',bg="light yellow")
+#         listFile=controller.retrieveFile(self,client)
+#         file=tk.StringVar(listFile)
+#         file.set("Select file to retrieve")
+#         menu=tk.OptionMen(tk.Frame,file, *listFile)
+#         menu.pack()
+        
 #--------------------------main------------------------
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_address = (HOST, PORT)
-
 client.connect(server_address)
 
 
