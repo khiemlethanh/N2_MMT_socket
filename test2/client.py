@@ -238,7 +238,8 @@ class App(tk.Tk):
                 f.write(content)
             if Type==".txt":
                 path=text_to_image.encode_file(nameFile+Type, nameFile+".png")
-            else: path=nameFile+".png"
+            elif Type==".png": path=nameFile+".png"
+            elif Type==".jpg": path=nameFile+".jpg"
             original_img=Image.open(path)
             resize_img=original_img.resize((300,300))
             img=ImageTk.PhotoImage(resize_img)
