@@ -346,7 +346,7 @@ server_address = (HOST, PORT)
 client.connect(server_address)
 
 
-app = App()
+app = App() 
 
 
 
